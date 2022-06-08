@@ -3,8 +3,10 @@
 //! asar's header is represented using a single root [`Directory`], with tree
 //! structures similar to what the file system looks like.
 
-use serde::{Deserialize, Serialize};
+use serde::de::{Error, Unexpected};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::collections::HashMap;
+use tokio::io;
 
 /// Entry of either a file or a directory.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -30,9 +32,9 @@ impl Entry {
 /// Metadata of a file.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FileMetadata {
-  /// The file's offset position after header.
-  #[serde(with = "serde_offset")]
-  pub offset: u64,
+  /// Where the file is located.
+  #[serde(flatten)]
+  pub pos: FilePosition,
 
   /// The file's size.
   ///
@@ -50,6 +52,78 @@ pub struct FileMetadata {
 
   /// Optional integrity information of the file.
   pub integrity: Option<Integrity>,
+}
+
+impl FileMetadata {
+  pub(crate) fn offset(&self) -> io::Result<u64> {
+    if let FilePosition::Offset(x) = self.pos {
+      Ok(x)
+    } else {
+      Err(io::Error::new(
+        io::ErrorKind::Other,
+        "unpacked file is currently not supported",
+      ))
+    }
+  }
+}
+
+/// Whether the file is stored in the archive or is unpacked.
+#[derive(Debug, Clone, Copy)]
+pub enum FilePosition {
+  /// Offset of the file in the archive, indicates the file is stored in it.
+  Offset(u64),
+
+  /// Indicates the file is stored outside the archive.
+  Unpacked,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(untagged)]
+enum Helper<'a> {
+  Offset {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    unpacked: Option<bool>,
+    offset: &'a str,
+  },
+  Unpacked {
+    unpacked: bool,
+  },
+}
+
+impl Serialize for FilePosition {
+  fn serialize<S: Serializer>(&self, ser: S) -> Result<S::Ok, S::Error> {
+    let offset_string;
+    let helper = match self {
+      Self::Offset(offset) => {
+        offset_string = offset.to_string();
+        Helper::Offset {
+          unpacked: None,
+          offset: &offset_string,
+        }
+      }
+      Self::Unpacked => Helper::Unpacked { unpacked: true },
+    };
+
+    helper.serialize(ser)
+  }
+}
+
+impl<'de> Deserialize<'de> for FilePosition {
+  fn deserialize<D: Deserializer<'de>>(de: D) -> Result<Self, D::Error> {
+    match Helper::deserialize(de)? {
+      Helper::Offset { unpacked, .. } if matches!(unpacked, Some(true)) => {
+        Err(Error::custom("got both 'unpacked' and 'offset' field"))
+      }
+      Helper::Offset { offset, .. } => offset
+        .parse()
+        .map(Self::Offset)
+        .map_err(|_| Error::invalid_value(Unexpected::Str(offset), &"valid u64 string")),
+      Helper::Unpacked { unpacked: true } => Ok(Self::Unpacked),
+      Helper::Unpacked { unpacked: false } => {
+        Err(Error::invalid_value(Unexpected::Bool(false), &"true"))
+      }
+    }
+  }
 }
 
 /// A directory, containing files.
@@ -89,17 +163,4 @@ pub struct Integrity {
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum Algorithm {
   SHA256,
-}
-
-mod serde_offset {
-  use serde::de::Error;
-  use serde::{Deserialize, Deserializer, Serializer};
-
-  pub fn serialize<S: Serializer>(offset: &u64, ser: S) -> Result<S::Ok, S::Error> {
-    ser.serialize_str(&offset.to_string())
-  }
-
-  pub fn deserialize<'de, D: Deserializer<'de>>(de: D) -> Result<u64, D::Error> {
-    String::deserialize(de)?.parse().map_err(D::Error::custom)
-  }
 }

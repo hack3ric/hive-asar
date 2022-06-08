@@ -34,7 +34,7 @@ impl<R: AsyncRead + AsyncSeek + Unpin> Archive<R> {
     let mut header_bytes = vec![0; header_size as _];
     reader.read_exact(&mut header_bytes).await?;
 
-    let header = serde_json::from_slice(&header_bytes).unwrap();
+    let header = serde_json::from_slice(&header_bytes).map_err(io::Error::from)?;
     let offset = match header_size % 4 {
       0 => header_size + 16,
       r => header_size + 16 + 4 - r,
@@ -64,7 +64,7 @@ impl<R: AsyncRead + AsyncSeek + Unpin> Archive<R> {
     match entry {
       Some(Entry::File(metadata)) => {
         (self.reader)
-          .seek(SeekFrom::Start(self.offset + metadata.offset))
+          .seek(SeekFrom::Start(self.offset + metadata.offset()?))
           .await?;
         Ok(File {
           offset: self.offset,
@@ -91,7 +91,7 @@ macro_rules! impl_read_owned {
         match entry {
           Some(Entry::File(metadata)) => {
             let mut file = self.reader.duplicate().await?;
-            let seek_from = SeekFrom::Start(self.offset + metadata.offset);
+            let seek_from = SeekFrom::Start(self.offset + metadata.offset()?);
             file.seek(seek_from).await?;
             Ok(File {
               offset: self.offset,
@@ -179,7 +179,7 @@ impl<R: AsyncRead + AsyncSeek + Unpin> AsyncRead for File<R> {
 impl<R: AsyncRead + AsyncSeek + Unpin> AsyncSeek for File<R> {
   fn start_seek(mut self: Pin<&mut Self>, position: SeekFrom) -> io::Result<()> {
     let current_relative_pos = self.metadata.size - self.content.limit();
-    let offset = self.offset + self.metadata.offset;
+    let offset = self.offset + self.metadata.offset()?;
     let absolute_pos = match position {
       SeekFrom::Start(pos) => SeekFrom::Start(offset + self.metadata.size.min(pos)),
       SeekFrom::Current(pos) if -pos as u64 > current_relative_pos => {
@@ -202,7 +202,7 @@ impl<R: AsyncRead + AsyncSeek + Unpin> AsyncSeek for File<R> {
     let result = Pin::new(self.content.get_mut()).poll_complete(cx);
     match result {
       Poll::Ready(Ok(result)) => {
-        let new_relative_pos = result - self.offset - self.metadata.offset;
+        let new_relative_pos = result - self.offset - self.metadata.offset()?;
         let new_limit = self.metadata.size - new_relative_pos;
         self.content.set_limit(new_limit);
         Poll::Ready(Ok(new_relative_pos))

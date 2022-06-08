@@ -1,4 +1,4 @@
-use crate::header::{Directory, Entry, FileMetadata};
+use crate::header::{Directory, Entry, FileMetadata, FilePosition};
 use crate::{cfg_fs, split_path};
 use std::io::SeekFrom;
 use tokio::io::{
@@ -31,14 +31,12 @@ impl<F: AsyncRead + Unpin> Writer<F> {
   fn add_folder_recursively(&mut self, segments: Vec<&str>) -> &mut Directory {
     let mut dir = &mut self.header;
     for seg in segments {
-      dir = if let Entry::Directory(dir) = dir
-        .files
+      let entry = (dir.files)
         .entry(seg.into())
-        .or_insert_with(|| Entry::Directory(Default::default()))
-      {
-        dir
-      } else {
-        unreachable!();
+        .or_insert_with(|| Entry::Directory(Default::default()));
+      dir = match entry {
+        Entry::Directory(dir) => dir,
+        _ => unreachable!(),
       }
     }
     dir
@@ -64,7 +62,7 @@ impl<F: AsyncRead + Unpin> Writer<F> {
       .pop()
       .expect("normalised path contains no filename");
     let file_entry = FileMetadata {
-      offset: self.file_offset,
+      pos: FilePosition::Offset(self.file_offset),
       size,
       executable: false,
       integrity: None,

@@ -40,7 +40,7 @@ async fn extract_file<R: AsyncRead + AsyncSeek + Unpin>(
   file: &FileMetadata,
   path: &Path,
 ) -> io::Result<()> {
-  reader.seek(SeekFrom::Start(offset + file.offset)).await?;
+  reader.seek(SeekFrom::Start(offset + file.offset()?)).await?;
   let mut dest = TokioFile::create(path.join(name)).await?;
   io::copy(&mut reader.take(file.size), &mut dest).await?;
   Ok(())
