@@ -1,12 +1,15 @@
 use crate::header::{Directory, Entry, FileMetadata};
-use crate::split_path;
-use std::future::Future;
+use crate::{cfg_fs, split_path};
 use std::io::SeekFrom;
-use std::path::Path;
-use std::pin::Pin;
 use tokio::io::{
   self, AsyncRead, AsyncReadExt, AsyncSeek, AsyncSeekExt, AsyncWrite, AsyncWriteExt, Take,
 };
+
+cfg_fs! {
+  use std::future::Future;
+  use std::path::Path;
+  use std::pin::Pin;
+}
 
 #[cfg(feature = "fs")]
 use tokio::fs::{read_dir, symlink_metadata, File as TokioFile};
@@ -108,9 +111,8 @@ impl<F: AsyncRead + Unpin> Writer<F> {
 impl<F: AsyncRead + AsyncSeek + Unpin> Writer<F> {
   /// Add an entry to the archive.
   ///
-  /// Similar to [`Writer::add`], but it uses
-  /// [`AsyncSeekExt::seek`] to determine the size of the
-  /// content.
+  /// Similar to [`Writer::add`], but it uses [`AsyncSeekExt::seek`] to
+  /// determine the size of the content.
   ///
   /// For more information see [`Writer::add`].
   pub async fn add_sized(&mut self, path: &str, mut content: F) -> io::Result<()> {
@@ -130,45 +132,45 @@ impl<F: AsyncRead + Unpin> Default for Writer<F> {
   }
 }
 
-/// Pack a directory to asar archive.
-#[cfg_attr(docsrs, doc(cfg(feature = "fs")))]
-pub async fn pack_dir(
-  path: impl AsRef<Path>,
-  dest: &mut (impl AsyncWrite + Unpin),
-) -> io::Result<()> {
-  let path = path.as_ref().canonicalize()?;
-  let mut writer = Writer::<TokioFile>::new();
-  add_dir_files(&mut writer, &path, &path).await?;
-  writer.write(dest).await
-}
+cfg_fs! {
+  /// Pack a directory to asar archive.
+  pub async fn pack_dir(
+    path: impl AsRef<Path>,
+    dest: &mut (impl AsyncWrite + Unpin),
+  ) -> io::Result<()> {
+    let path = path.as_ref().canonicalize()?;
+    let mut writer = Writer::<TokioFile>::new();
+    add_dir_files(&mut writer, &path, &path).await?;
+    writer.write(dest).await
+  }
 
-#[cfg(feature = "fs")]
-fn add_dir_files<'a>(
-  writer: &'a mut Writer<TokioFile>,
-  path: &'a Path,
-  original_path: &'a Path,
-) -> Pin<Box<dyn Future<Output = io::Result<()>> + 'a>> {
-  Box::pin(async move {
-    if symlink_metadata(path).await?.is_dir() {
-      let mut rd = read_dir(path).await?;
-      while let Some(entry) = rd.next_entry().await? {
-        let file_type = entry.file_type().await?;
-        if file_type.is_dir() {
-          add_dir_files(writer, &entry.path(), original_path).await?;
-        } else if file_type.is_symlink() {
-          // do nothing
-        } else {
-          let absolute_path = entry.path();
-          let file = TokioFile::open(&absolute_path).await?;
-          let relative_path = absolute_path
-            .strip_prefix(original_path)
-            .unwrap()
-            .to_str()
-            .unwrap();
-          writer.add(relative_path, file, entry.metadata().await?.len());
+  fn add_dir_files<'a>(
+    writer: &'a mut Writer<TokioFile>,
+    path: &'a Path,
+    original_path: &'a Path,
+  ) -> Pin<Box<dyn Future<Output = io::Result<()>> + 'a>> {
+    Box::pin(async move {
+      if symlink_metadata(path).await?.is_dir() {
+        let mut rd = read_dir(path).await?;
+        while let Some(entry) = rd.next_entry().await? {
+          let file_type = entry.file_type().await?;
+          if file_type.is_dir() {
+            add_dir_files(writer, &entry.path(), original_path).await?;
+          } else if file_type.is_symlink() {
+            // do nothing
+          } else {
+            let absolute_path = entry.path();
+            let file = TokioFile::open(&absolute_path).await?;
+            let relative_path = absolute_path
+              .strip_prefix(original_path)
+              .unwrap()
+              .to_str()
+              .unwrap();
+            writer.add(relative_path, file, entry.metadata().await?.len());
+          }
         }
       }
-    }
-    Ok(())
-  })
+      Ok(())
+    })
+  }
 }

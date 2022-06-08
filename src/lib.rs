@@ -16,18 +16,17 @@
 pub mod header;
 
 mod archive;
-#[cfg(feature = "fs")]
-mod extract;
-#[cfg(feature = "fs")]
-mod file_archive;
 mod writer;
 
-pub use archive::{Archive, File};
-#[cfg_attr(docsrs, doc(cfg(feature = "fs")))]
-pub use file_archive::FileArchive;
-#[cfg_attr(docsrs, doc(cfg(feature = "fs")))]
-pub use writer::pack_dir;
+pub use archive::{Archive, Duplicable, File, LocalDuplicable};
 pub use writer::Writer;
+
+cfg_fs! {
+  mod extract;
+
+  pub use archive::TokioFileWithPath;
+  pub use writer::pack_dir;
+}
 
 pub(crate) fn split_path(path: &str) -> Vec<&str> {
   path
@@ -41,4 +40,21 @@ pub(crate) fn split_path(path: &str) -> Vec<&str> {
       }
       result
     })
+}
+
+pub(crate) mod private {
+  pub trait Sealed {}
+  impl<T> Sealed for T {}
+}
+
+#[macro_export]
+#[doc(hidden)]
+macro_rules! cfg_fs {
+  ($($item:item)*) => {
+    $(
+      #[cfg(feature = "fs")]
+      #[cfg_attr(docsrs, doc(cfg(feature = "fs")))]
+      $item
+    )*
+  }
 }
