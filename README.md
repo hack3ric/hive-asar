@@ -10,7 +10,7 @@ Currently supported:
 
 Currently not supported:
 - Write and check integrity (planned)
-s- [`FileMetadata::executable`](header::FileMetadata::executable) (not planned, it is up to you whether use it or not)
+- [`FileMetadata::executable`](header::FileMetadata::executable) (not planned, it is up to you whether use it or not)
 
 ## License
 
