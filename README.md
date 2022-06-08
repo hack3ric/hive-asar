@@ -1,8 +1,9 @@
 # hive-asar
 
-![Crates.io](https://img.shields.io/crates/v/hive-asar)
-![Docs](https://img.shields.io/docsrs/hive-asar)
-![License](https://img.shields.io/crates/l/hive-asar)
+[![Rust](https://github.com/hack3ric/hive-asar/actions/workflows/rust.yml/badge.svg)](https://github.com/hack3ric/hive-asar/actions/workflows/rust.yml)
+[![Crates.io](https://img.shields.io/crates/v/hive-asar)](https://crates.io/crates/hive-asar)
+[![Docs](https://img.shields.io/docsrs/hive-asar)](https://docs.rs/hive-asar)
+[![License](https://img.shields.io/crates/l/hive-asar)](LICENSE)
 
 Asynchronous parser and writer for Electron's asar archive format.
 
