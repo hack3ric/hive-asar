@@ -4,12 +4,12 @@ use std::future::Future;
 use std::io::SeekFrom;
 use std::path::Path;
 use std::pin::Pin;
-use tokio::fs::{symlink_metadata, File as TokioFile};
+use tokio::fs::{read_dir, symlink_metadata, File as TokioFile};
 use tokio::io::{
   self, AsyncRead, AsyncReadExt, AsyncSeek, AsyncSeekExt, AsyncWrite, AsyncWriteExt, Take,
 };
 
-/// asar archive writer.
+/// Asar archive writer.
 #[derive(Debug)]
 pub struct Writer<F: AsyncRead + Unpin> {
   header: Directory,
@@ -55,7 +55,9 @@ impl<F: AsyncRead + Unpin> Writer<F> {
   /// path is already occupied by a previously inserted file.
   pub fn add(&mut self, path: &str, content: F, size: u64) {
     let mut segments = split_path(path);
-    let filename = segments.pop().unwrap();
+    let filename = segments
+      .pop()
+      .expect("normalised path contains no filename");
     let file_entry = FileMetadata {
       offset: self.file_offset,
       size,
@@ -66,7 +68,6 @@ impl<F: AsyncRead + Unpin> Writer<F> {
       .add_folder_recursively(segments)
       .files
       .insert(filename.into(), Entry::File(file_entry));
-    dbg!(&result);
     assert!(result.is_none());
     self.file_offset += size;
     self.files.push(content.take(size))
@@ -133,7 +134,7 @@ pub async fn pack_dir(
   dest: &mut (impl AsyncWrite + Unpin),
 ) -> io::Result<()> {
   let path = path.as_ref().canonicalize()?;
-  let mut writer = Writer::<tokio::fs::File>::new();
+  let mut writer = Writer::<TokioFile>::new();
   add_dir_files(&mut writer, &path, &path).await?;
   writer.write(dest).await
 }
@@ -145,8 +146,8 @@ fn add_dir_files<'a>(
 ) -> Pin<Box<dyn Future<Output = io::Result<()>> + 'a>> {
   Box::pin(async move {
     if symlink_metadata(path).await?.is_dir() {
-      let mut read_dir = tokio::fs::read_dir(path).await?;
-      while let Some(entry) = read_dir.next_entry().await? {
+      let mut rd = read_dir(path).await?;
+      while let Some(entry) = rd.next_entry().await? {
         let file_type = entry.file_type().await?;
         if file_type.is_dir() {
           add_dir_files(writer, &entry.path(), original_path).await?;

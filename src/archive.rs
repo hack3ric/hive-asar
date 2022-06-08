@@ -9,15 +9,21 @@ use std::task::{Context, Poll};
 use tokio::fs::{self, File as TokioFile};
 use tokio::io::{self, AsyncRead, AsyncReadExt, AsyncSeek, AsyncSeekExt, Take};
 
-/// asar archive reader.
+/// Asar archive reader.
 #[derive(Debug)]
-pub struct Archive<R: AsyncRead + AsyncSeek + Send + Sync + Unpin> {
+pub struct Archive<R>
+where
+  R: AsyncRead + AsyncSeek + Send + Sync + Unpin,
+{
   pub(crate) offset: u64,
   pub(crate) header: Directory,
   pub(crate) reader: R,
 }
 
-impl<R: AsyncRead + AsyncSeek + Send + Sync + Unpin> Archive<R> {
+impl<R> Archive<R>
+where
+  R: AsyncRead + AsyncSeek + Send + Sync + Unpin,
+{
   /// Parses an asar archive into `Archive`.
   pub async fn new(mut reader: R) -> io::Result<Self> {
     reader.seek(SeekFrom::Start(12)).await?;
@@ -127,13 +133,16 @@ impl DerefMut for FileArchive {
   }
 }
 
-fn extract_entry<'a, R: AsyncRead + AsyncSeek + Send + Sync + Unpin>(
+fn extract_entry<'a, R>(
   reader: &'a mut R,
   offset: u64,
   name: &'a str,
   entry: &'a Entry,
   path: &'a Path,
-) -> Pin<Box<dyn Future<Output = io::Result<()>> + Send + Sync + 'a>> {
+) -> Pin<Box<dyn Future<Output = io::Result<()>> + Send + Sync + 'a>>
+where
+  R: AsyncRead + AsyncSeek + Send + Sync + Unpin,
+{
   Box::pin(async move {
     match entry {
       Entry::File(file) => extract_file(reader, offset, name, file, path).await?,
@@ -143,13 +152,16 @@ fn extract_entry<'a, R: AsyncRead + AsyncSeek + Send + Sync + Unpin>(
   })
 }
 
-async fn extract_file<R: AsyncRead + AsyncSeek + Send + Sync + Unpin>(
+async fn extract_file<R>(
   reader: &mut R,
   offset: u64,
   name: &str,
   file: &FileMetadata,
   path: &Path,
-) -> io::Result<()> {
+) -> io::Result<()>
+where
+  R: AsyncRead + AsyncSeek + Send + Sync + Unpin,
+{
   reader.seek(SeekFrom::Start(offset + file.offset)).await?;
   let mut dest = fs::File::create(path.join(name)).await?;
   io::copy(&mut reader.take(file.size), &mut dest).await?;
@@ -172,20 +184,29 @@ async fn extract_dir<R: AsyncRead + AsyncSeek + Send + Sync + Unpin>(
 }
 
 /// File from an asar archive.
-pub struct File<R: AsyncRead + AsyncSeek + Send + Sync + Unpin> {
+pub struct File<R>
+where
+  R: AsyncRead + AsyncSeek + Send + Sync + Unpin,
+{
   offset: u64,
   pub(crate) metadata: FileMetadata,
   pub(crate) content: Take<R>,
 }
 
-impl<R: AsyncRead + AsyncSeek + Send + Sync + Unpin> File<R> {
+impl<R> File<R>
+where
+  R: AsyncRead + AsyncSeek + Send + Sync + Unpin,
+{
   /// Gets the metadata of the file.
   pub fn metadata(&self) -> &FileMetadata {
     &self.metadata
   }
 }
 
-impl<R: AsyncRead + AsyncSeek + Send + Sync + Unpin> AsyncRead for File<R> {
+impl<R> AsyncRead for File<R>
+where
+  R: AsyncRead + AsyncSeek + Send + Sync + Unpin,
+{
   fn poll_read(
     mut self: Pin<&mut Self>,
     cx: &mut Context<'_>,
@@ -195,7 +216,10 @@ impl<R: AsyncRead + AsyncSeek + Send + Sync + Unpin> AsyncRead for File<R> {
   }
 }
 
-impl<R: AsyncRead + AsyncSeek + Send + Sync + Unpin> AsyncSeek for File<R> {
+impl<R> AsyncSeek for File<R>
+where
+  R: AsyncRead + AsyncSeek + Send + Sync + Unpin,
+{
   fn start_seek(mut self: Pin<&mut Self>, position: SeekFrom) -> io::Result<()> {
     let current_relative_pos = self.metadata.size - self.content.limit();
     let offset = self.offset + self.metadata.offset;

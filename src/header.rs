@@ -30,12 +30,25 @@ impl Entry {
 /// Metadata of a file.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FileMetadata {
+  /// The file's offset position after header.
   #[serde(with = "serde_offset")]
   pub offset: u64,
-  // no larger than 9007199254740991
+
+  /// The file's size.
+  ///
+  /// According to [official repository], this field should not be larger than
+  /// `9007199254740991`, which is JavaScript's `Number.MAX_SAFE_INTEGER` and about 8PB in size.
+  /// However, if you do not need to interact with the official implementation,
+  /// any `u64` value would be OK.
+  ///
+  /// [official repository]: https://github.com/electron/asar#format
   pub size: u64,
+
+  /// Whether the file is an executable.
   #[serde(default)]
   pub executable: bool,
+
+  /// Optional integrity information of the file.
   pub integrity: Option<Integrity>,
 }
 
@@ -56,10 +69,17 @@ impl Directory {
 /// Integrity information of a file.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Integrity {
+  /// Hashing algorithm used.
   pub algorithm: Algorithm,
+
+  /// The hash of the entire file.
   pub hash: String,
+
+  /// Indicates the size of each block of the hashes in `blocks`.
   #[serde(rename = "blockSize")]
   pub block_size: u32,
+
+  /// Hashes of blocks.
   pub blocks: Vec<String>,
 }
 
