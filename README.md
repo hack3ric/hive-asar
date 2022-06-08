@@ -67,7 +67,7 @@ async fn main() -> tokio::io::Result<()> {
 
 ## Features
 
-- `fs`: (enabled by default) File system support, e.g. `FileArchive`, `Archive::extract` and `pack_dir`
+- `fs`: (enabled by default) File system support, e.g. `Archive::extract` and `pack_dir`
 
 ## License
 
