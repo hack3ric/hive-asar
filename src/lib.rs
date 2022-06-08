@@ -24,7 +24,7 @@ pub use writer::Writer;
 cfg_fs! {
   mod extract;
 
-  pub use archive::TokioFileWithPath;
+  pub use archive::DuplicableFile;
   pub use writer::pack_dir;
 }
 
@@ -57,4 +57,18 @@ macro_rules! cfg_fs {
       $item
     )*
   }
+}
+
+#[cfg(test)]
+#[tokio::test]
+async fn test() -> tokio::io::Result<()> {
+  use tokio::io::AsyncReadExt;
+  let mut archive = Archive::new_from_file("src.asar").await?;
+  let mut file = archive.read("archive.rs").await?;
+  let mut buf = String::new();
+  file.read_to_string(&mut buf).await?;
+
+  // println!("{buf}");
+
+  Ok(())
 }

@@ -49,10 +49,10 @@ impl<R: AsyncRead + AsyncSeek + Unpin> Archive<R> {
 }
 
 cfg_fs! {
-  impl Archive<TokioFileWithPath> {
+  impl Archive<DuplicableFile> {
     /// Opens a file and parses it into `Archive`.
     pub async fn new_from_file(path: impl Into<PathBuf>) -> io::Result<Self> {
-      Self::new(TokioFileWithPath::open(path).await?).await
+      Self::new(DuplicableFile::open(path).await?).await
     }
   }
 }
@@ -247,20 +247,20 @@ impl<T: Clone> LocalDuplicable for Cursor<T> {
 }
 
 cfg_fs! {
-  /// [`TokioFile`] with path.
+  /// [`TokioFile`] with path that implements [`Duplicate`].
   ///
   /// A new file handle with different internal state cannot be created from an
   /// existing one. [`TokioFile::try_clone`] shares its internal cursor,
   /// and thus cannot be [`Duplicable`]. `TokioFileWithPath`, however, opens a
   /// new file handle every time [`Duplicable::duplicate`] is called.
   #[pin_project]
-  pub struct TokioFileWithPath {
+  pub struct DuplicableFile {
     #[pin]
     inner: TokioFile,
     path: PathBuf,
   }
 
-  impl TokioFileWithPath {
+  impl DuplicableFile {
     pub async fn open(path: impl Into<PathBuf>) -> io::Result<Self> {
       let path = path.into();
       let inner = TokioFile::open(&path).await?;
@@ -276,7 +276,7 @@ cfg_fs! {
     }
   }
 
-  impl AsyncRead for TokioFileWithPath {
+  impl AsyncRead for DuplicableFile {
     fn poll_read(
       self: Pin<&mut Self>,
       cx: &mut Context<'_>,
@@ -286,7 +286,7 @@ cfg_fs! {
     }
   }
 
-  impl AsyncSeek for TokioFileWithPath {
+  impl AsyncSeek for DuplicableFile {
     fn start_seek(self: Pin<&mut Self>, position: SeekFrom) -> std::io::Result<()> {
       self.project().inner.start_seek(position)
     }
@@ -297,7 +297,7 @@ cfg_fs! {
   }
 
   #[async_trait]
-  impl Duplicable for TokioFileWithPath {
+  impl Duplicable for DuplicableFile {
     async fn duplicate(&self) -> io::Result<Self> {
       Ok(Self {
         inner: TokioFile::open(&self.path).await?,
@@ -307,7 +307,7 @@ cfg_fs! {
   }
 
   #[async_trait(?Send)]
-  impl LocalDuplicable for TokioFileWithPath {
+  impl LocalDuplicable for DuplicableFile {
     async fn duplicate(&self) -> io::Result<Self> {
       Ok(Self {
         inner: TokioFile::open(&self.path).await?,
