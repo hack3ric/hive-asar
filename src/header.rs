@@ -37,9 +37,9 @@ pub struct FileMetadata {
   /// The file's size.
   ///
   /// According to [official repository], this field should not be larger than
-  /// `9007199254740991`, which is JavaScript's `Number.MAX_SAFE_INTEGER` and about 8PB in size.
-  /// However, if you do not need to interact with the official implementation,
-  /// any `u64` value would be OK.
+  /// `9007199254740991`, which is JavaScript's `Number.MAX_SAFE_INTEGER` and
+  /// about 8PB in size. However, if you do not need to interact with the
+  /// official implementation, any `u64` value would be OK.
   ///
   /// [official repository]: https://github.com/electron/asar#format
   pub size: u64,

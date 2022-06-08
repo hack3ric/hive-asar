@@ -4,10 +4,12 @@ use std::future::Future;
 use std::io::SeekFrom;
 use std::path::Path;
 use std::pin::Pin;
-use tokio::fs::{read_dir, symlink_metadata, File as TokioFile};
 use tokio::io::{
   self, AsyncRead, AsyncReadExt, AsyncSeek, AsyncSeekExt, AsyncWrite, AsyncWriteExt, Take,
 };
+
+#[cfg(feature = "fs")]
+use tokio::fs::{read_dir, symlink_metadata, File as TokioFile};
 
 /// Asar archive writer.
 #[derive(Debug)]
@@ -129,6 +131,7 @@ impl<F: AsyncRead + Unpin> Default for Writer<F> {
 }
 
 /// Pack a directory to asar archive.
+#[cfg_attr(docsrs, doc(cfg(feature = "fs")))]
 pub async fn pack_dir(
   path: impl AsRef<Path>,
   dest: &mut (impl AsyncWrite + Unpin),
@@ -139,6 +142,7 @@ pub async fn pack_dir(
   writer.write(dest).await
 }
 
+#[cfg(feature = "fs")]
 fn add_dir_files<'a>(
   writer: &'a mut Writer<TokioFile>,
   path: &'a Path,
