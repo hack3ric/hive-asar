@@ -1,6 +1,9 @@
 [package]
 name = "hive-asar"
+description = "Asynchronous parser and writer for Electron's asar archive format."
 version = "0.1.0"
+repository = "https://github.com/hack3ric/hive-asar"
+license = "MIT"
 edition = "2021"
 
 [dependencies]
