@@ -6,7 +6,11 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 use tokio::io::{self, AsyncRead, AsyncReadExt, AsyncSeek, AsyncSeekExt, Take};
 
-/// Asar archive reader.
+/// Generic asar archive reader.
+///
+/// It supports any reader that implements `AsyncRead + AsyncSeek + Send + Sync
+/// + Unpin`. For parsing an archive from a file, you may prefer using
+/// [`FileArchive`](crate::FileArchive).
 #[derive(Debug)]
 pub struct Archive<R>
 where
