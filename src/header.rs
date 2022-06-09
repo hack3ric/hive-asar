@@ -6,6 +6,7 @@
 use serde::de::{Error, Unexpected};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::collections::HashMap;
+use std::fmt::{self, Debug, Display, Formatter};
 use tokio::io;
 
 /// Entry of either a file or a directory.
@@ -147,14 +148,41 @@ pub struct Integrity {
   pub algorithm: Algorithm,
 
   /// The hash of the entire file.
-  pub hash: String,
+  pub hash: Hash,
 
   /// Indicates the size of each block of the hashes in `blocks`.
   #[serde(rename = "blockSize")]
   pub block_size: u32,
 
   /// Hashes of blocks.
-  pub blocks: Vec<String>,
+  pub blocks: Vec<Hash>,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+pub struct Hash(#[serde(with = "hex::serde")] pub(crate) Vec<u8>);
+
+impl From<Vec<u8>> for Hash {
+  fn from(x: Vec<u8>) -> Self {
+    Self(x)
+  }
+}
+
+impl From<Hash> for Vec<u8> {
+  fn from(x: Hash) -> Self {
+    x.0
+  }
+}
+
+impl Debug for Hash {
+  fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    <Self as Display>::fmt(self, f)
+  }
+}
+
+impl Display for Hash {
+  fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    f.write_str(&hex::encode(&self.0))
+  }
 }
 
 /// Hashing algorithm used to check files' integrity.

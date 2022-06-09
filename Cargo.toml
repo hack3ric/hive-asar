@@ -11,14 +11,17 @@ all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
 [features]
-default = ["fs"]
+default = ["fs", "integrity"]
 fs = ["tokio/fs"]
+integrity = ["sha2"]
 
 [dependencies]
 async-trait = "0.1"
+hex = { version = "0.4.3", features = ["serde"] }
 pin-project = "1.0.10"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+sha2 = { version = "0.10.2", optional = true }
 tokio = { version = "1", features = ["io-util"] }
 
 [dev-dependencies]

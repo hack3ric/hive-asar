@@ -1,5 +1,5 @@
-use crate::header::{Directory, Entry, FileMetadata, FilePosition};
-use crate::{cfg_fs, split_path};
+use crate::header::{Directory, Entry, FileMetadata, FilePosition, Integrity};
+use crate::{cfg_fs, cfg_integrity, split_path};
 use std::io::SeekFrom;
 use tokio::io::{
   self, AsyncRead, AsyncReadExt, AsyncSeek, AsyncSeekExt, AsyncWrite, AsyncWriteExt, Take,
@@ -10,6 +10,12 @@ cfg_fs! {
   use std::path::Path;
   use std::pin::Pin;
   use tokio::fs::{read_dir, symlink_metadata, File as TokioFile};
+}
+
+cfg_integrity! {
+  use crate::header::{Algorithm, Hash};
+  use sha2::digest::Digest;
+  use sha2::Sha256;
 }
 
 /// Asar archive writer.
@@ -55,6 +61,17 @@ impl<F: AsyncRead + Unpin> Writer<F> {
   /// The method panics if normalised `path` contains no filename, or if the
   /// path is already occupied by a previously inserted file.
   pub fn add(&mut self, path: &str, content: F, size: u64) {
+    self.add_with_options(path, content, size, false, None)
+  }
+
+  fn add_with_options(
+    &mut self,
+    path: &str,
+    content: F,
+    size: u64,
+    executable: bool,
+    integrity: Option<Integrity>,
+  ) {
     let mut segments = split_path(path);
     let filename = segments
       .pop()
@@ -62,8 +79,8 @@ impl<F: AsyncRead + Unpin> Writer<F> {
     let file_entry = FileMetadata {
       pos: FilePosition::Offset(self.file_offset),
       size,
-      executable: false,
-      integrity: None,
+      executable,
+      integrity,
     };
     let result = self
       .add_folder_recursively(segments)
@@ -116,6 +133,38 @@ impl<F: AsyncRead + AsyncSeek + Unpin> Writer<F> {
     self.add(path, content, size);
     Ok(())
   }
+
+  cfg_integrity! {
+    pub async fn add_sized_with_integrity(&mut self, path: &str, mut content: F) -> io::Result<()> {
+      let block_size = 4_194_304u32;
+      let mut global_state = Sha256::new();
+      let mut block = Vec::with_capacity(block_size as _);
+      let mut blocks = Vec::new();
+      let mut size = 0;
+      loop {
+        let read_size = (&mut content)
+          .take(block_size as _)
+          .read_to_end(&mut block)
+          .await?;
+        if read_size == 0 {
+          break;
+        }
+        size += read_size;
+        blocks.push(Hash(Sha256::digest(&block).to_vec()));
+        global_state.update(&block);
+        block.clear();
+      }
+      let integrity = Integrity {
+        algorithm: Algorithm::SHA256,
+        hash: Hash(global_state.finalize().to_vec()),
+        block_size,
+        blocks,
+      };
+      content.rewind().await?;
+      self.add_with_options(path, content, size as _, false, Some(integrity));
+      Ok(())
+    }
+  }
 }
 
 impl<F: AsyncRead + Unpin> Default for Writer<F> {
@@ -162,7 +211,10 @@ cfg_fs! {
               .unwrap()
               .to_str()
               .unwrap();
-            writer.add(relative_path, file, entry.metadata().await?.len());
+            #[cfg(not(feature = "integrity"))]
+            writer.add_sized(relative_path, file).await?;
+            #[cfg(feature = "integrity")]
+            writer.add_sized_with_integrity(relative_path, file).await?;
           }
         }
       }

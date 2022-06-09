@@ -59,3 +59,15 @@ macro_rules! cfg_fs {
     )*
   }
 }
+
+#[macro_export]
+#[doc(hidden)]
+macro_rules! cfg_integrity {
+  ($($item:item)*) => {
+    $(
+      #[cfg(feature = "integrity")]
+      #[cfg_attr(docsrs, doc(cfg(feature = "integrity")))]
+      $item
+    )*
+  }
+}
