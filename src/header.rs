@@ -1,6 +1,6 @@
 //! Structures that describes asar's header.
 //!
-//! asar's header is represented using a single root [`Directory`], with tree
+//! Asar's header is represented using a single root [`Directory`], with tree
 //! structures similar to what the file system looks like.
 
 use serde::de::{Error, Unexpected};

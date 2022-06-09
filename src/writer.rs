@@ -9,10 +9,8 @@ cfg_fs! {
   use std::future::Future;
   use std::path::Path;
   use std::pin::Pin;
+  use tokio::fs::{read_dir, symlink_metadata, File as TokioFile};
 }
-
-#[cfg(feature = "fs")]
-use tokio::fs::{read_dir, symlink_metadata, File as TokioFile};
 
 /// Asar archive writer.
 #[derive(Debug)]

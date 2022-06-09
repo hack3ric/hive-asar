@@ -247,7 +247,7 @@ impl<T: Clone> LocalDuplicable for Cursor<T> {
 }
 
 cfg_fs! {
-  /// [`TokioFile`] with path that implements [`Duplicate`].
+  /// [`TokioFile`] with path that implements [`Duplicable`].
   ///
   /// A new file handle with different internal state cannot be created from an
   /// existing one. [`TokioFile::try_clone`] shares its internal cursor,

@@ -10,6 +10,7 @@
 //!
 //! Currently not supported:
 //! - Write and check integrity (planned)
+//! - Unpacked files (planned)
 //! - [`FileMetadata::executable`](header::FileMetadata::executable) (not
 //!   planned, it is up to you whether use it or not)
 
@@ -28,7 +29,7 @@ cfg_fs! {
   pub use writer::pack_dir;
 }
 
-pub(crate) fn split_path(path: &str) -> Vec<&str> {
+fn split_path(path: &str) -> Vec<&str> {
   path
     .split('/')
     .filter(|x| !x.is_empty() && *x != ".")
@@ -42,7 +43,7 @@ pub(crate) fn split_path(path: &str) -> Vec<&str> {
     })
 }
 
-pub(crate) mod private {
+mod private {
   pub trait Sealed {}
   impl<T> Sealed for T {}
 }
