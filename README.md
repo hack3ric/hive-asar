@@ -59,7 +59,7 @@ async fn main() -> tokio::io::Result<()> {
   writer.write(File::create("dest.asar").await?).await?;
 
   // Or use `pack_dir` to pack a directory's content conveniently
-  pack_dir("folder", File::create("dest.asar").await?).await?;
+  pack_dir("folder", &mut File::create("dest.asar").await?).await?;
 
   Ok(())
 }
