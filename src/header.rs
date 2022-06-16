@@ -7,6 +7,7 @@ use serde::de::{Error, Unexpected};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::collections::HashMap;
 use std::fmt::{self, Debug, Display, Formatter};
+use std::ops::Deref;
 use tokio::io;
 
 /// Entry of either a file or a directory.
@@ -41,14 +42,14 @@ pub struct FileMetadata {
   ///
   /// According to [official repository], this field should not be larger than
   /// `9007199254740991`, which is JavaScript's `Number.MAX_SAFE_INTEGER` and
-  /// about 8PB in size. However, if you do not need to interact with the
-  /// official implementation, any `u64` value would be OK.
+  /// about 8PB in size.
   ///
   /// [official repository]: https://github.com/electron/asar#format
   pub size: u64,
 
   /// Whether the file is an executable.
   #[serde(default)]
+  #[serde(skip_serializing_if = "bool::clone")]
   pub executable: bool,
 
   /// Optional integrity information of the file.
@@ -127,20 +128,6 @@ impl<'de> Deserialize<'de> for FilePosition {
   }
 }
 
-/// A directory, containing files.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct Directory {
-  pub files: HashMap<Box<str>, Entry>,
-}
-
-impl Directory {
-  pub(crate) fn search_segments(&self, segments: &[&str]) -> Option<&Entry> {
-    (self.files)
-      .get(segments[0])
-      .and_then(|x| x.search_segments(&segments[1..]))
-  }
-}
-
 /// Integrity information of a file.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Integrity {
@@ -173,6 +160,20 @@ impl From<Hash> for Vec<u8> {
   }
 }
 
+impl AsRef<[u8]> for Hash {
+  fn as_ref(&self) -> &[u8] {
+    &self.0
+  }
+}
+
+impl Deref for Hash {
+  type Target = [u8];
+
+  fn deref(&self) -> &Self::Target {
+    self.as_ref()
+  }
+}
+
 impl Debug for Hash {
   fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
     <Self as Display>::fmt(self, f)
@@ -191,4 +192,18 @@ impl Display for Hash {
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum Algorithm {
   SHA256,
+}
+
+/// A directory, containing files.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct Directory {
+  pub files: HashMap<Box<str>, Entry>,
+}
+
+impl Directory {
+  pub(crate) fn search_segments(&self, segments: &[&str]) -> Option<&Entry> {
+    (self.files)
+      .get(segments[0])
+      .and_then(|x| x.search_segments(&segments[1..]))
+  }
 }

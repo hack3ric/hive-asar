@@ -1,5 +1,5 @@
 use crate::header::{Directory, Entry, FileMetadata, FilePosition, Integrity};
-use crate::{cfg_fs, cfg_integrity, split_path};
+use crate::{cfg_fs, cfg_integrity, split_path, BLOCK_SIZE};
 use std::io::SeekFrom;
 use tokio::io::{
   self, AsyncRead, AsyncReadExt, AsyncSeek, AsyncSeekExt, AsyncWrite, AsyncWriteExt, Take,
@@ -136,14 +136,13 @@ impl<F: AsyncRead + AsyncSeek + Unpin> Writer<F> {
 
   cfg_integrity! {
     pub async fn add_sized_with_integrity(&mut self, path: &str, mut content: F) -> io::Result<()> {
-      let block_size = 4_194_304u32;
       let mut global_state = Sha256::new();
-      let mut block = Vec::with_capacity(block_size as _);
+      let mut block = Vec::with_capacity(BLOCK_SIZE as _);
       let mut blocks = Vec::new();
       let mut size = 0;
       loop {
         let read_size = (&mut content)
-          .take(block_size as _)
+          .take(BLOCK_SIZE as _)
           .read_to_end(&mut block)
           .await?;
         if read_size == 0 {
@@ -157,7 +156,7 @@ impl<F: AsyncRead + AsyncSeek + Unpin> Writer<F> {
       let integrity = Integrity {
         algorithm: Algorithm::SHA256,
         hash: Hash(global_state.finalize().to_vec()),
-        block_size,
+        block_size: BLOCK_SIZE,
         blocks,
       };
       content.rewind().await?;

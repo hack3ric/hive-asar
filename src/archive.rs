@@ -1,6 +1,6 @@
 use crate::header::{Directory, Entry, FileMetadata};
 use crate::private::Sealed;
-use crate::{cfg_fs, split_path};
+use crate::{cfg_fs, cfg_integrity, split_path};
 use async_trait::async_trait;
 use std::io::{Cursor, SeekFrom};
 use std::pin::Pin;
@@ -11,6 +11,11 @@ cfg_fs! {
   use pin_project::pin_project;
   use std::path::{Path, PathBuf};
   use tokio::fs::File as TokioFile;
+}
+
+cfg_integrity! {
+  use sha2::digest::Digest;
+  use sha2::Sha256;
 }
 
 /// Generic asar archive reader.
@@ -153,9 +158,11 @@ cfg_fs! {
 }
 
 /// File from an asar archive.
+#[pin_project]
 pub struct File<R: AsyncRead + AsyncSeek + Unpin> {
   pub(crate) offset: u64,
   pub(crate) metadata: FileMetadata,
+  #[pin]
   pub(crate) content: Take<R>,
 }
 
@@ -164,15 +171,47 @@ impl<R: AsyncRead + AsyncSeek + Unpin> File<R> {
   pub fn metadata(&self) -> &FileMetadata {
     &self.metadata
   }
+
+  cfg_integrity! {
+    pub async fn check_integrity(&mut self) -> io::Result<bool> {
+      if let Some(integrity) = &self.metadata.integrity {
+        let block_size = integrity.block_size;
+        let mut block = Vec::with_capacity(block_size as _);
+        let mut global_state = Sha256::new();
+        let mut size = 0;
+
+        for block_hash in integrity.blocks.iter() {
+          let read_size = (&mut self.content)
+            .take(block_size as _)
+            .read_to_end(&mut block)
+            .await?;
+          if read_size == 0 || *Sha256::digest(&block) != **block_hash {
+            self.rewind().await?;
+            return Ok(false);
+          }
+          size += read_size;
+          global_state.update(&block);
+          block.clear();
+        }
+        if self.metadata.size != size as u64 || *global_state.finalize() != *integrity.hash {
+          self.rewind().await?;
+          return Ok(false);
+        }
+
+        self.rewind().await?;
+      }
+      Ok(true)
+    }
+  }
 }
 
 impl<R: AsyncRead + AsyncSeek + Unpin> AsyncRead for File<R> {
   fn poll_read(
-    mut self: Pin<&mut Self>,
+    self: Pin<&mut Self>,
     cx: &mut Context<'_>,
     buf: &mut io::ReadBuf<'_>,
   ) -> Poll<io::Result<()>> {
-    Pin::new(&mut self.content).poll_read(cx, buf)
+   self.project().content.poll_read(cx, buf)
   }
 }
 

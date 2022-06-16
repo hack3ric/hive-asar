@@ -29,6 +29,8 @@ cfg_fs! {
   pub use writer::pack_dir;
 }
 
+const BLOCK_SIZE: u32 = 4_194_304;
+
 fn split_path(path: &str) -> Vec<&str> {
   path
     .split('/')
