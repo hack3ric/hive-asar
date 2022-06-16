@@ -2,13 +2,13 @@ use crate::header::{Directory, Entry, FileMetadata};
 use crate::private::Sealed;
 use crate::{cfg_fs, cfg_integrity, split_path};
 use async_trait::async_trait;
+use pin_project::pin_project;
 use std::io::{Cursor, SeekFrom};
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use tokio::io::{self, AsyncRead, AsyncReadExt, AsyncSeek, AsyncSeekExt, Take};
 
 cfg_fs! {
-  use pin_project::pin_project;
   use std::path::{Path, PathBuf};
   use tokio::fs::File as TokioFile;
 }
@@ -51,11 +51,30 @@ impl<R: AsyncRead + AsyncSeek + Unpin> Archive<R> {
       reader,
     })
   }
+
+  /// Returns a reference to its inner reader.
+  pub fn reader(&self) -> &R {
+    &self.reader
+  }
+
+  /// Returns mutable reference to its inner reader.
+  ///
+  /// It is mostly OK to seek the reader's cursor, since every time accessing
+  /// its file will reset the cursor to the file's position. However, write
+  /// access will compromise [`Archive`]'s functionality. Use with great care!
+  pub fn reader_mut(&mut self) -> &mut R {
+    &mut self.reader
+  }
+
+  /// Drops the inner state and returns the reader.
+  pub fn into_reader(self) -> R {
+    self.reader
+  }
 }
 
 cfg_fs! {
   impl Archive<DuplicableFile> {
-    /// Opens a file and parses it into `Archive`.
+    /// Opens a file and parses it into [`Archive`].
     pub async fn new_from_file(path: impl Into<PathBuf>) -> io::Result<Self> {
       Self::new(DuplicableFile::open(path).await?).await
     }
@@ -211,7 +230,7 @@ impl<R: AsyncRead + AsyncSeek + Unpin> AsyncRead for File<R> {
     cx: &mut Context<'_>,
     buf: &mut io::ReadBuf<'_>,
   ) -> Poll<io::Result<()>> {
-   self.project().content.poll_read(cx, buf)
+    self.project().content.poll_read(cx, buf)
   }
 }
 
@@ -310,8 +329,15 @@ cfg_fs! {
       &self.path
     }
 
-    pub async fn into_inner(self) -> (TokioFile, PathBuf) {
+    pub fn into_inner(self) -> (TokioFile, PathBuf) {
       (self.inner, self.path)
+    }
+
+    pub async fn rename(&mut self, new_path: impl Into<PathBuf>) -> io::Result<()> {
+      let new_path = new_path.into();
+      tokio::fs::rename(&self.path, &new_path).await?;
+      self.path = new_path;
+      Ok(())
     }
   }
 
