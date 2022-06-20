@@ -30,19 +30,39 @@ pub struct Archive<R: AsyncRead + AsyncSeek + Unpin> {
   pub(crate) reader: R,
 }
 
+async fn check_and_get_header_len(reader: &mut (impl AsyncRead + Unpin)) -> io::Result<u32> {
+  let four = reader.read_u32_le().await?;
+  let i1 = reader.read_u32_le().await?;
+  let i2 = reader.read_u32_le().await?;
+  let header_len = reader.read_u32_le().await?;
+
+  let padding = match header_len % 4 {
+    0 => 0,
+    r => 4 - r,
+  };
+
+  let i1_e = header_len + padding + 8;
+  let i2_e = header_len + padding + 4;
+
+  if four == 4 && i1 == i1_e && i2 == i2_e {
+    Ok(header_len)
+  } else {
+    Err(io::Error::new(io::ErrorKind::Other, "file format check failed"))
+  }
+}
+
 impl<R: AsyncRead + AsyncSeek + Unpin> Archive<R> {
   /// Parses an asar archive into `Archive`.
   pub async fn new(mut reader: R) -> io::Result<Self> {
-    reader.seek(SeekFrom::Start(12)).await?;
-    let header_size = reader.read_u32_le().await?;
+    let header_len = check_and_get_header_len(&mut reader).await?;
 
-    let mut header_bytes = vec![0; header_size as _];
+    let mut header_bytes = vec![0; header_len as _];
     reader.read_exact(&mut header_bytes).await?;
 
     let header = serde_json::from_slice(&header_bytes).map_err(io::Error::from)?;
-    let offset = match header_size % 4 {
-      0 => header_size + 16,
-      r => header_size + 16 + 4 - r,
+    let offset = match header_len % 4 {
+      0 => header_len + 16,
+      r => header_len + 16 + 4 - r,
     } as u64;
 
     Ok(Self {
