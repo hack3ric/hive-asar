@@ -19,7 +19,7 @@ pub mod header;
 mod archive;
 mod writer;
 
-pub use archive::{Archive, Duplicable, File, LocalDuplicable};
+pub use archive::{Archive, Duplicable, File, LocalDuplicable, check_asar_format};
 pub use writer::Writer;
 
 cfg_fs! {
