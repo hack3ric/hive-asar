@@ -107,7 +107,7 @@ cfg_fs! {
 }
 
 impl<R: AsyncRead + AsyncSeek + Unpin> Archive<R> {
-  /// Returns a file entry from the archive by taking mutable reference.
+  /// Returns a file from the archive by taking mutable reference.
   pub async fn get(&mut self, path: &str) -> io::Result<File<&mut R>> {
     let entry = self.header.search_segments(&split_path(path));
     match entry {
@@ -124,6 +124,11 @@ impl<R: AsyncRead + AsyncSeek + Unpin> Archive<R> {
       Some(_) => Err(io::Error::new(io::ErrorKind::Other, "not a file")),
       None => Err(io::ErrorKind::NotFound.into()),
     }
+  }
+
+  /// Returns the entry ("metadata") of specified path.
+  pub fn get_entry(&self, path: &str) -> Option<&Entry> {
+    self.header.search_segments(&split_path(path))
   }
 }
 
@@ -157,7 +162,7 @@ macro_rules! impl_get_owned {
 }
 
 impl_get_owned! {
-  /// Returns a file entry from the archive by duplicating the inner reader.
+  /// Returns a file from the archive by duplicating the inner reader.
   ///
   /// Contrary to [`Archive::read`], it allows multiple read access over a single
   /// archive by creating a new file handle for every file. Useful when building a
@@ -167,7 +172,7 @@ impl_get_owned! {
 }
 
 impl_get_owned! {
-  /// Returns a file entry from the archive by duplicating the inner reader, without `Sync`.
+  /// Returns a file from the archive by duplicating the inner reader, without `Sync`.
   ///
   /// See [`Archive::read_owned`] for more information.
   get_owned_local,
