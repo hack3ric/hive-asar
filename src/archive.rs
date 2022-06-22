@@ -102,8 +102,8 @@ cfg_fs! {
 }
 
 impl<R: AsyncRead + AsyncSeek + Unpin> Archive<R> {
-  /// Reads a file entry from the archive by taking mutable reference.
-  pub async fn read(&mut self, path: &str) -> io::Result<File<&mut R>> {
+  /// Returns a file entry from the archive by taking mutable reference.
+  pub async fn get(&mut self, path: &str) -> io::Result<File<&mut R>> {
     let entry = self.header.search_segments(&split_path(path));
     match entry {
       Some(Entry::File(metadata)) => {
@@ -122,15 +122,15 @@ impl<R: AsyncRead + AsyncSeek + Unpin> Archive<R> {
   }
 }
 
-macro_rules! impl_read_owned {
+macro_rules! impl_get_owned {
   (
     $(#[$attr:ident $($args:tt)*])*
-    $read_owned:ident,
+    $get_owned:ident,
     $duplicate:ident $(,)?
   ) => {
     impl<R: AsyncRead + AsyncSeek + $duplicate + Unpin> Archive<R> {
       $(#[$attr $($args)*])*
-      pub async fn $read_owned(&self, path: &str) -> io::Result<File<R>> {
+      pub async fn $get_owned(&self, path: &str) -> io::Result<File<R>> {
         let entry = self.header.search_segments(&split_path(path));
         match entry {
           Some(Entry::File(metadata)) => {
@@ -151,21 +151,21 @@ macro_rules! impl_read_owned {
   }
 }
 
-impl_read_owned! {
-  /// Reads a file entry from the archive by duplicating the inner reader.
+impl_get_owned! {
+  /// Returns a file entry from the archive by duplicating the inner reader.
   ///
   /// Contrary to [`Archive::read`], it allows multiple read access over a single
   /// archive by creating a new file handle for every file. Useful when building a
   /// virtual file system like how Electron does.
-  read_owned,
+  get_owned,
   Duplicable,
 }
 
-impl_read_owned! {
-  /// Reads a file entry from the archive by duplicating the inner reader, without `Sync`.
+impl_get_owned! {
+  /// Returns a file entry from the archive by duplicating the inner reader, without `Sync`.
   ///
   /// See [`Archive::read_owned`] for more information.
-  read_owned_local,
+  get_owned_local,
   LocalDuplicable,
 }
 
