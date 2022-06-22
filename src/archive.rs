@@ -121,7 +121,7 @@ impl<R: AsyncRead + AsyncSeek + Unpin> Archive<R> {
           content: (&mut self.reader).take(metadata.size),
         })
       }
-      Some(_) => Err(io::Error::new(io::ErrorKind::Other, "not a file")),
+      Some(Entry::Directory(_)) => Err(io::Error::from_raw_os_error(libc::EISDIR)),
       None => Err(io::ErrorKind::NotFound.into()),
     }
   }
@@ -153,8 +153,8 @@ macro_rules! impl_get_owned {
               content: file.take(metadata.size),
             })
           }
-          Some(_) => Err(io::Error::new(io::ErrorKind::Other, "not a file")),
-          None => Err(io::ErrorKind::NotFound.into()),
+          Some(_) => Err(io::Error::from_raw_os_error(libc::EISDIR)),
+          None => Err(io::Error::from_raw_os_error(libc::ENOENT)),
         }
       }
     }
@@ -271,7 +271,7 @@ impl<R: AsyncRead + AsyncSeek + Unpin> AsyncSeek for File<R> {
     let absolute_pos = match position {
       SeekFrom::Start(pos) => SeekFrom::Start(offset + self.metadata.size.min(pos)),
       SeekFrom::Current(pos) if -pos as u64 > current_relative_pos => {
-        return Err(io::ErrorKind::InvalidInput.into())
+        return Err(io::Error::from_raw_os_error(libc::EINVAL))
       }
       SeekFrom::Current(pos) => {
         let relative_pos = pos.min((self.metadata.size - current_relative_pos) as i64);
@@ -279,7 +279,7 @@ impl<R: AsyncRead + AsyncSeek + Unpin> AsyncSeek for File<R> {
       }
       SeekFrom::End(pos) if pos > 0 => SeekFrom::Start(offset + self.metadata.size),
       SeekFrom::End(pos) if -pos as u64 > self.metadata.size => {
-        return Err(io::ErrorKind::InvalidInput.into())
+        return Err(io::Error::from_raw_os_error(libc::EINVAL))
       }
       SeekFrom::End(pos) => SeekFrom::Start(offset + self.metadata.size - (-pos as u64)),
     };
