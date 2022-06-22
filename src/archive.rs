@@ -30,11 +30,14 @@ pub struct Archive<R: AsyncRead + AsyncSeek + Unpin> {
   pub(crate) reader: R,
 }
 
-async fn check_and_get_header_len(reader: &mut (impl AsyncRead + Unpin)) -> io::Result<u32> {
-  let four = reader.read_u32_le().await?;
-  let i1 = reader.read_u32_le().await?;
-  let i2 = reader.read_u32_le().await?;
-  let header_len = reader.read_u32_le().await?;
+/// Checks if a file is in asar format by reading and checking first 16 bytes.
+///
+/// Returns `Some(header_len)` if it is an asar archive, or `None` if it isn't.
+pub async fn check_asar_format(reader: &mut (impl AsyncRead + Unpin)) -> io::Result<Option<u32>> {
+  let [four, i1, i2, header_len] = [0; 4];
+  for x in [four, i1, i2, header_len].iter_mut() {
+    *x = reader.read_u32_le().await?;
+  }
 
   let padding = match header_len % 4 {
     0 => 0,
@@ -45,16 +48,18 @@ async fn check_and_get_header_len(reader: &mut (impl AsyncRead + Unpin)) -> io::
   let i2_e = header_len + padding + 4;
 
   if four == 4 && i1 == i1_e && i2 == i2_e {
-    Ok(header_len)
+    Ok(Some(header_len))
   } else {
-    Err(io::Error::new(io::ErrorKind::Other, "file format check failed"))
+    Ok(None)
   }
 }
 
 impl<R: AsyncRead + AsyncSeek + Unpin> Archive<R> {
   /// Parses an asar archive into `Archive`.
   pub async fn new(mut reader: R) -> io::Result<Self> {
-    let header_len = check_and_get_header_len(&mut reader).await?;
+    let header_len = check_asar_format(&mut reader)
+      .await?
+      .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "file format check failed"))?;
 
     let mut header_bytes = vec![0; header_len as _];
     reader.read_exact(&mut header_bytes).await?;
