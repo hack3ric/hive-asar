@@ -34,8 +34,8 @@ pub struct Archive<R: AsyncRead + AsyncSeek + Unpin> {
 ///
 /// Returns `Some(header_len)` if it is an asar archive, or `None` if it isn't.
 pub async fn check_asar_format(reader: &mut (impl AsyncRead + Unpin)) -> io::Result<Option<u32>> {
-  let [four, i1, i2, header_len] = [0; 4];
-  for x in [four, i1, i2, header_len].iter_mut() {
+  let [mut four, mut i1, mut i2, mut header_len] = [0; 4];
+  for x in [&mut four, &mut i1, &mut i2, &mut header_len] {
     *x = reader.read_u32_le().await?;
   }
 
