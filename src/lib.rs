@@ -26,7 +26,11 @@ cfg_fs! {
   mod extract;
 
   pub use archive::DuplicableFile;
-  pub use writer::{pack_dir, pack_dir_into_stream, pack_dir_into_writer};
+  pub use writer::{pack_dir, pack_dir_into_writer};
+
+  cfg_stream! {
+    pub use writer::pack_dir_into_stream;
+  }
 }
 
 cfg_integrity! {
@@ -81,8 +85,8 @@ macro_rules! cfg_integrity {
 macro_rules! cfg_stream {
   ($($item:item)*) => {
     $(
-      #[cfg(feature = "integrity")]
-      #[cfg_attr(docsrs, doc(cfg(feature = "integrity")))]
+      #[cfg(feature = "stream")]
+      #[cfg_attr(docsrs, doc(cfg(feature = "stream")))]
       $item
     )*
   }

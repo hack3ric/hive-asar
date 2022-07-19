@@ -164,7 +164,7 @@ macro_rules! impl_get_owned {
 impl_get_owned! {
   /// Returns a file from the archive by duplicating the inner reader.
   ///
-  /// Contrary to [`Archive::read`], it allows multiple read access over a single
+  /// Contrary to [`Archive::get`], it allows multiple read access over a single
   /// archive by creating a new file handle for every file. Useful when building a
   /// virtual file system like how Electron does.
   get_owned,
@@ -174,7 +174,7 @@ impl_get_owned! {
 impl_get_owned! {
   /// Returns a file from the archive by duplicating the inner reader, without `Sync`.
   ///
-  /// See [`Archive::read_owned`] for more information.
+  /// See [`Archive::get_owned`] for more information.
   get_owned_local,
   LocalDuplicable,
 }
