@@ -26,10 +26,12 @@ cfg_fs! {
   mod extract;
 
   pub use archive::DuplicableFile;
-  pub use writer::pack_dir;
+  pub use writer::{pack_dir, pack_dir_into_stream, pack_dir_into_writer};
 }
 
-const BLOCK_SIZE: u32 = 4_194_304;
+cfg_integrity! {
+  const BLOCK_SIZE: u32 = 4_194_304;
+}
 
 fn split_path(path: &str) -> Vec<&str> {
   path
@@ -65,6 +67,18 @@ macro_rules! cfg_fs {
 #[macro_export]
 #[doc(hidden)]
 macro_rules! cfg_integrity {
+  ($($item:item)*) => {
+    $(
+      #[cfg(feature = "integrity")]
+      #[cfg_attr(docsrs, doc(cfg(feature = "integrity")))]
+      $item
+    )*
+  }
+}
+
+#[macro_export]
+#[doc(hidden)]
+macro_rules! cfg_stream {
   ($($item:item)*) => {
     $(
       #[cfg(feature = "integrity")]

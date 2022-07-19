@@ -1,5 +1,5 @@
 use crate::header::{Directory, Entry, FileMetadata, FilePosition, Integrity};
-use crate::{cfg_fs, cfg_integrity, split_path, BLOCK_SIZE};
+use crate::{cfg_fs, cfg_integrity, cfg_stream, split_path};
 use std::io::SeekFrom;
 use tokio::io::{
   self, AsyncRead, AsyncReadExt, AsyncSeek, AsyncSeekExt, AsyncWrite, AsyncWriteExt, Take,
@@ -13,9 +13,19 @@ cfg_fs! {
 }
 
 cfg_integrity! {
+  use crate::BLOCK_SIZE;
   use crate::header::{Algorithm, Hash};
   use sha2::digest::Digest;
   use sha2::Sha256;
+}
+
+cfg_stream! {
+  use bytes::Bytes;
+  use futures_core::Stream;
+  use futures_util::future::ok;
+  use futures_util::stream::{iter, once};
+  use futures_util::StreamExt;
+  use tokio_util::io::ReaderStream;
 }
 
 /// Asar archive writer.
@@ -98,7 +108,7 @@ impl<F: AsyncRead + Unpin> Writer<F> {
 
   /// Finishes the archive and writes the content into `dest`.
   pub async fn write(self, dest: &mut (impl AsyncWrite + Unpin)) -> io::Result<()> {
-    let header_bytes = serde_json::to_vec(&self.header).unwrap();
+    let header_bytes = serde_json::to_vec(&self.header)?;
     let header_len = header_bytes.len() as u32;
     let padding = match header_len % 4 {
       0 => 0,
@@ -118,6 +128,35 @@ impl<F: AsyncRead + Unpin> Writer<F> {
     }
 
     Ok(())
+  }
+
+  cfg_stream! {
+    pub fn into_stream(self) -> io::Result<impl Stream<Item = io::Result<Bytes>>> {
+      let mut header_bytes = serde_json::to_vec(&self.header)?;
+      let header_len = header_bytes.len() as u32;
+      let padding = match header_len % 4 {
+        0 => 0,
+        r => 4 - r,
+      };
+      for _ in 0..padding {
+        header_bytes.extend(Some(0))
+      }
+
+      let mut header_meta = Vec::with_capacity((16 + header_len + padding) as _);
+      for i in [
+        4u32,
+        header_len + padding + 8,
+        header_len + padding + 4,
+        header_len,
+      ] {
+        header_meta.extend(i.to_le_bytes());
+      }
+
+      let stream = once(ok(header_meta.into()))
+        .chain(once(ok(header_bytes.into())))
+        .chain(iter(self.files.into_iter().map(ReaderStream::new)).flatten());
+      Ok(stream)
+    }
   }
 }
 
@@ -182,10 +221,29 @@ cfg_fs! {
     path: impl AsRef<Path>,
     dest: &mut (impl AsyncWrite + Unpin),
   ) -> io::Result<()> {
+    pack_dir_into_writer(path)
+      .await?
+      .write(dest)
+      .await
+  }
+
+  cfg_stream! {
+    pub async fn pack_dir_into_stream(
+      path: impl AsRef<Path>,
+    ) -> io::Result<impl Stream<Item = io::Result<Bytes>>> {
+      pack_dir_into_writer(path)
+        .await?
+        .into_stream()
+    }
+  }
+
+  pub async fn pack_dir_into_writer(
+    path: impl AsRef<Path>,
+  ) -> io::Result<Writer<TokioFile>> {
     let path = path.as_ref().canonicalize()?;
     let mut writer = Writer::<TokioFile>::new();
     add_dir_files(&mut writer, &path, &path).await?;
-    writer.write(dest).await
+    Ok(writer)
   }
 
   fn add_dir_files<'a>(
