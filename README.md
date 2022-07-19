@@ -68,6 +68,7 @@ async fn main() -> tokio::io::Result<()> {
 
 - `fs`: (enabled by default) File system support, e.g. `Archive::extract` and `pack_dir`.
 - `integrity`: (enabled by default) Enables SHA256 hash support in header. Uses `sha2` crate.
+- `stream`: `futures::Stream` support, with several helper methods.
 
 ## License
 
