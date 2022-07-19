@@ -7,12 +7,10 @@
 //! Currently supported:
 //! - Parse archive from file or async reader
 //! - Pack archive from multiple readers, or conveniently from a folder.
+//! - Write and check integrity
 //!
 //! Currently not supported:
-//! - Write and check integrity (planned)
-//! - Unpacked files (planned)
-//! - [`FileMetadata::executable`](header::FileMetadata::executable) (not
-//!   planned, it is up to you whether use it or not)
+//! - Unpacked files
 
 pub mod header;
 

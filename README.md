@@ -12,11 +12,10 @@ Requires Tokio 1.x runtime.
 Currently supported:
 - Parse archive from file or async reader
 - Pack archive from multiple readers, or conveniently from a folder
+- Write and check integrity
 
 Currently not supported:
-- Write and check integrity (planned)
-- Unpacked files (planned)
-- `executable` (not planned, it is up to you whether use it or not)
+- Unpacked files
 
 ## Examples
 
